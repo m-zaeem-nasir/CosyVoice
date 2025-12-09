@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  cosyvoice:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: cosyvoice:latest
+    container_name: cosyvoice
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount pretrained models directory
+      - ../pretrained_models:/workspace/CosyVoice/pretrained_models
+      # Mount output directory for generated audio files
+      - ../outputs:/workspace/CosyVoice/outputs
+      # Optional: mount your custom data
+      # - ./data:/workspace/CosyVoice/data
+    ports:
+      # Web UI port
+      - "50000:50000"
+      # Optional: gRPC service port
+      # - "50001:50001"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: >
+      /bin/bash -c "
+      source /opt/conda/etc/profile.d/conda.sh &&
+      conda activate cosyvoice &&
+      python3 webui.py --port 50000 --model_dir pretrained_models/CosyVoice2-0.5B
+      "
+    # Uncomment below for gRPC server instead of web UI
+    # command: >
+    #   /bin/bash -c "
+    #   source /opt/conda/etc/profile.d/conda.sh &&
+    #   conda activate cosyvoice &&
+    #   cd runtime/python/grpc &&
+    #   python3 server.py --port 50000 --max_conc 4 --model_dir pretrained_models/CosyVoice2-0.5B
+    #   "
+
+    # Uncomment below for FastAPI server instead of web UI
+    # command: >
+    #   /bin/bash -c "
+    #   source /opt/conda/etc/profile.d/conda.sh &&
+    #   conda activate cosyvoice &&
+    #   cd runtime/python/fastapi &&
+    #   python3 server.py --port 50000 --model_dir pretrained_models/CosyVoice2-0.5B
+    #   "
+
+    restart: unless-stopped
+    networks:
+      - cosyvoice-network
+
+networks:
+  cosyvoice-network:
+    driver: bridge
